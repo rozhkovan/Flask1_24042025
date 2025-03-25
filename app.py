@@ -84,8 +84,7 @@ def quote_by_id(id):
     index = get_index_by_id(id) 
     if index:
         return quotes[index]
-    else:
-        return f"Quote with id={id} not found", 404
+    return f"Quote with id={id} not found", 404
 
 
 @app.route("/quotes/<int:id>", methods=['PUT'])
@@ -104,8 +103,7 @@ def edit_quote(id):
         else:
             quotes[index]['rate'] = new_rate
         return quotes[index], 200
-    else:
-        return {}, 404
+    return {}, 404
 
 
 @app.route("/quotes/<int:id>", methods=['DELETE'])
@@ -114,8 +112,7 @@ def delete(id):
     if index:
         quotes.pop(index)
         return f"Quote with id {id} is deleted.", 200
-    else:
-        return {}, 404
+    return {}, 404
 
 
 @app.route("/quotes/count")
