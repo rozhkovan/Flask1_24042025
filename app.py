@@ -1,5 +1,6 @@
-from flask import Flask, request
-import random
+from flask import Flask, request, jsonify
+from random import choice
+from typing import Any
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
@@ -38,11 +39,11 @@ quotes = [
 ]
 
 
-def get_new_id():
+def get_new_id() -> int:
     return quotes[-1].get('id') + 1
 
 
-def get_index_by_id(id: int):
+def get_index_by_id(id: int) -> int:
     for i in range(len(quotes)):
         if quotes[i].get('id') == id:
             return i
@@ -50,95 +51,85 @@ def get_index_by_id(id: int):
 
 
 @app.route("/")
-def hello_world():
-    return "Hello, World!"
+def hello_world() -> dict:
+    return jsonify(data = "Hello, World!")
 
 
 @app.route("/about")
-def about():
-    return about_me
+def about() -> dict:
+    return jsonify(about_me)
 
 
 @app.route("/quotes")
-def get_quote():
-    return quotes
+def get_quote() -> list[dict[str, Any]]: 
+    return jsonify(quotes)
 
 
 @app.route("/quotes", methods=['POST'])
-def create_quote():
-    data = request.json
-    q = dict(data)
+def create_quote() -> dict:
+    q = dict(request.json)
     q['id'] = get_new_id()
     new_rate = q.get('rate')
     if new_rate:
-        if new_rate < 1 or new_rate > 5:
+        if new_rate not in range(1,6):
             q['rate'] = 1
     else:
         q['rate'] = 1 
     quotes.append(q)
-    return q, 200
+    return jsonify(q), 200
 
 
 @app.route("/quotes/<int:id>")
-def quote_by_id(id):
+def quote_by_id(id : int) -> dict:
     index = get_index_by_id(id) 
     if index:
-        return quotes[index]
-    return f"Quote with id={id} not found", 404
+        return jsonify(quotes[index])
+    return jsonify(error = f"Quote with id={id} not found"), 404
 
 
 @app.route("/quotes/<int:id>", methods=['PUT'])
-def edit_quote(id):
-    data = request.json
+def edit_quote(id: int) -> dict:
     index = get_index_by_id(id)
-    if index: 
-        new = dict(data)
-        if new.get('author'):
-            quotes[index]['author'] = new.get('author')
-        if new.get('text'):
-            quotes[index]['text'] = new.get('text')
+    if index:
+        new = dict(request.json)
         new_rate = new.get('rate')
-        if new_rate < 1 or new_rate > 5:
-            pass            
-        else:
-            quotes[index]['rate'] = new_rate
-        return quotes[index], 200
-    return {}, 404
+        if new_rate not in range(1,6):
+            new['rate'] = quotes[index]['rate']
+        for key in new:
+            quotes[index][key] = new[key]
+        return jsonify(quotes[index]), 200
+    return jsonify(error = f"Quote with id={id} not found"), 404
 
 
 @app.route("/quotes/<int:id>", methods=['DELETE'])
-def delete(id):
+def delete(id: int):
     index = get_index_by_id(id)
     if index:
         quotes.pop(index)
-        return f"Quote with id {id} is deleted.", 200
-    return {}, 404
+        return jsonify(message = f"Quote with id={id} is deleted."), 200
+    return jsonify(error = f"Quote with id={id} not found"), 404
 
 
 @app.route("/quotes/count")
 def quotes_count():
-    return dict(count=len(quotes))
+    return jsonify(count = len(quotes))
 
 
 @app.route("/quotes/random")
-def random_quote():
-    return random.choice(quotes)
+def random_quote() -> dict:
+    return jsonify(choice(quotes))
 
 
 @app.route("/quotes/filter", methods=['GET'])
-def filtered_quotes():
+def filtered_quotes() -> list[dict]:
     args = request.args.to_dict()
-    autor_filter = args.get('author')
     rate_filter = args.get('rate')
-    text_filter = args.get('text')
-    result = quotes
-    if autor_filter:
-        result = list(filter(lambda x: x['author'] == autor_filter, result))
     if rate_filter:
-        result = list(filter(lambda x: x['rate'] == int(rate_filter), result))
-    if text_filter:
-        result = list(filter(lambda x: x['text'] == text_filter, result))
-    return result
+        args['rate'] = int(rate_filter)
+    result = quotes
+    for key in args:
+        result = list(filter(lambda x: x[key] == args[key], result))
+    return jsonify(result)
 
 
 if __name__ == "__main__":
