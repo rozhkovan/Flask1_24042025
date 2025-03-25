@@ -7,3 +7,4 @@ __pycache__/
 *.sqlite
 *.sqlite3
 *.tmp
+app copy.py
