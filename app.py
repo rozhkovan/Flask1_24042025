@@ -61,7 +61,7 @@ def about() -> dict:
 
 
 @app.route("/quotes")
-def get_quote() -> list[dict[str, Any]]: 
+def get_quotes() -> list[dict[str, Any]]: 
     return jsonify(quotes)
 
 
@@ -80,7 +80,7 @@ def create_quote() -> dict:
 
 
 @app.route("/quotes/<int:id>")
-def quote_by_id(id : int) -> dict:
+def get_quote(id : int) -> dict:
     index = get_index_by_id(id) 
     if index:
         return jsonify(quotes[index])
@@ -102,7 +102,7 @@ def edit_quote(id: int) -> dict:
 
 
 @app.route("/quotes/<int:id>", methods=['DELETE'])
-def delete(id: int):
+def delete_quote(id: int):
     index = get_index_by_id(id)
     if index:
         quotes.pop(index)
