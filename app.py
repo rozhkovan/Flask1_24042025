@@ -130,7 +130,7 @@ def edit_quote(id: int) -> dict:
     if wrong_keys:
         return jsonify(error = f"Wrong keys {wrong_keys}"), HTTPStatus.BAD_REQUEST
     new_rate = new_data.get('rate')
-    if new_rate not in RATE_RANGE:
+    if new_rate and new_rate not in RATE_RANGE:
         new_data.pop['rate']
 
     # Считывание исходной записи
