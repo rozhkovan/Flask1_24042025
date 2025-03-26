@@ -24,7 +24,8 @@ BASE_DIR = Path(__file__).parent
 path_to_db = BASE_DIR / "store.db"
 
 app = Flask(__name__)
-app.config['JSON_AS_ASCII'] = False
+# app.config['JSON_AS_ASCII'] = False
+app.json.ensure_ascii = False
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{BASE_DIR / 'main.db'}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
