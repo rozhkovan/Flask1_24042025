@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, g, abort
+from werkzeug.exceptions import HTTPException
 from random import choice
 from typing import Any
 from http import HTTPStatus
@@ -29,6 +30,11 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+
+
+@app.errorhandler(HTTPException)
+def handle_exception(e):
+    return jsonify(message = e.description), e.code
 
 
 def create_table():
