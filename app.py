@@ -7,9 +7,9 @@ from pathlib import Path
 # import sqlite3
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String
+from sqlalchemy import String, func, ForeignKey
 
 from flask_migrate import Migrate
 
@@ -23,7 +23,7 @@ TABLE_FIELDS = ('id', 'author', 'text', 'rate')
 RATE_RANGE = range(1,6)
 
 BASE_DIR = Path(__file__).parent
-path_to_db = BASE_DIR / "store.db"
+# path_to_db = BASE_DIR / "store.db"
 
 app = Flask(__name__)
 # app.config['JSON_AS_ASCII'] = False
@@ -35,21 +35,40 @@ db = SQLAlchemy(model_class=Base)
 db.init_app(app)
 migrate = Migrate(app, db)
 
+
+class AuthorModel(db.Model):
+    __tablename__ = 'authors'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[int] = mapped_column(String(32), index= True, unique=True)
+    quotes: Mapped[list['QuoteModel']] = relationship( back_populates='author', lazy='dynamic')
+    
+    def __init__(self, name):
+        self.name = name
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name
+            }
+
+
 class QuoteModel(db.Model):
     __tablename__ = 'quotes'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    author: Mapped[str] = mapped_column(String(32))
+    author_id: Mapped[str] = mapped_column(ForeignKey('authors.id'))
+    author: Mapped['AuthorModel'] = relationship(back_populates='quotes')
     text: Mapped[str] = mapped_column(String(255))
 
     def __init__(self, author, text):
         self.author = author
-        self.text  = text
+        self.text = text
 
     def to_dict(self):
         return {
             "id": self.id,
-            "author": self.author,
+            # "author": self.author,
             "text": self.text
         }
     
@@ -68,6 +87,15 @@ def get_quotes() -> list[dict[str, Any]]:
     for quote_db in quotes_db:
         quotes.append(quote_db.to_dict())        
     return jsonify(quotes), HTTPStatus.OK
+
+
+@app.route("/author/<int:author_id>/quotes")
+def get_author_quotes(author_id): 
+    author = db.session.get(AuthorModel, author_id)
+    quotes = []
+    for quote_db in author.quotes:
+        quotes.append(quote_db.to_dict())        
+    return jsonify(author = author.to_dict(), quotes = quotes), HTTPStatus.OK
 
 
 @app.route("/quotes", methods=['POST'])
