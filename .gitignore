@@ -8,3 +8,4 @@ __pycache__/
 *.sqlite3
 *.tmp
 app copy.py
+app copy 2.py
