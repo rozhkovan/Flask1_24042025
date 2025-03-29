@@ -18,7 +18,7 @@ class Base(DeclarativeBase):
     pass
 
 
-QUOTES_KEYS = set(('author', 'text', 'rate'))
+QUOTES_KEYS = set(('author_id', 'text', 'rate'))
 TABLE_FIELDS = ('id', 'author', 'text', 'rate')
 RATE_RANGE = range(1,6)
 
@@ -69,10 +69,16 @@ class QuoteModel(db.Model):
         return {
             "id": self.id,
             "author_id": self.author_id,
-            # "author": self.author,
+            "author": self.author.to_dict(),
             "text": self.text
         }
 
+    def to_dict_short(self):
+        return {
+            "id": self.id,
+            "author_id": self.author_id,
+            "text": self.text
+        }
 
 @app.errorhandler(HTTPException)
 def handle_exception(e):
@@ -105,16 +111,18 @@ def create_author():
     return author.to_dict(), HTTPStatus.CREATED
 
 
-# @app.route("/authors/<int:author_id>", methods=["PUT"])
-# def edit_author(author_id):
-#     author_data = request.json
-#     author = db.session.get(AuthorModel, author_id)
-#     # author = AuthorModel(author_data["name"])
+@app.route("/authors/<int:author_id>", methods=["PUT"])
+def edit_author(author_id):
+    author_data = request.json
+    author = db.session.get(AuthorModel, author_id)
+    author_name = author_data.get('name')
+    if author_name:
+        author.name = (author_data['name'])
 
-#     print(**author_data)
-#     # db.session.add(author)
-#     # db.session.commit()
-#     return author.to_dict(), HTTPStatus.CREATED
+    print(author_data)
+    # db.session.add(author)
+    db.session.commit()
+    return author.to_dict(), HTTPStatus.OK
 
 
 @app.route("/authors/<int:author_id>", methods=["DELETE"])
@@ -132,7 +140,7 @@ def get_author_quotes(author_id):
     author = db.session.get(AuthorModel, author_id)
     quotes = []
     for quote_db in author.quotes:
-        quotes.append(quote_db.to_dict())        
+        quotes.append(quote_db.to_dict_short())        
     return jsonify(author = author.to_dict(), quotes = quotes), HTTPStatus.OK
 
 
@@ -153,6 +161,7 @@ def get_quotes() -> list[dict[str, Any]]:
     quotes_db = db.session.execute(db.select(QuoteModel)).scalars()
     quotes = []
     for quote_db in quotes_db:
+        author = db.session.get(AuthorModel ,quote_db.author_id)
         quotes.append(quote_db.to_dict())        
     return jsonify(quotes), HTTPStatus.OK
 
@@ -186,27 +195,39 @@ def get_quote(quote_id : int) -> dict:
     return jsonify(error = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
 
 
-# @app.route("/quotes/<int:quote_id>", methods=['PUT'])
-# def edit_quote(quote_id: int) -> dict:
-#     # Проверка данных
-#     new_data = dict(request.json)
-#     wrong_keys = set(new_data.keys()) - QUOTES_KEYS
-#     if wrong_keys:
-#         return jsonify(error = f"Wrong keys {wrong_keys}"), HTTPStatus.BAD_REQUEST
-#     new_rate = new_data.get('rate')
-#     if new_rate and new_rate not in RATE_RANGE:
-#         new_data.pop['rate']
+@app.route("/quotes/<int:quote_id>", methods=['PUT'])
+def edit_quote(quote_id: int) -> dict:
+    # Проверка данных
+    new_data = dict(request.json)
+    wrong_keys = set(new_data.keys()) - QUOTES_KEYS
+    if wrong_keys:
+        return jsonify(error = f"Wrong keys {wrong_keys}"), HTTPStatus.BAD_REQUEST
+    # new_rate = new_data.get('rate')
+    # if new_rate and new_rate not in RATE_RANGE:
+    #     new_data.pop['rate']
 
-#     # Обновление записи
-#     quote_db = db.session.execute(db.select(QuoteModel).filter_by(id=quote_id)).scalar_one_or_none()
-#     if quote_db:
-#         quote = quote_db.to_dict()
-#         quote.update(new_data)
-#         quote_db.author = quote['author']
-#         quote_db.text = quote['text']
-#         db.session.commit()
-#         return jsonify(quote_db.to_dict()), HTTPStatus.OK
-#     return jsonify(error = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
+    # Обновление записи
+    quote_db = db.session.get(QuoteModel, quote_id)
+    if quote_db:
+        new_text = new_data.get('text')
+        if new_text:
+            quote_db.text = new_text
+        new_rate = new_data.get('rate')
+        if new_rate and new_rate in RATE_RANGE:
+            quote_db.rate = new_rate
+        new_author_id = new_data.get('author_id')
+        if new_author_id:
+            new_author = db.session.get(AuthorModel, new_author_id)
+            if new_author:
+                quote_db.author_id = new_author_id
+
+        # quote = quote_db.to_dict()
+        # quote.update(new_data)
+        # quote_db.author = quote['author']
+        # quote_db.text = quote['text']
+        db.session.commit()
+        return jsonify(quote_db.to_dict()), HTTPStatus.OK
+    return jsonify(error = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
 
 
 @app.route("/quotes/<int:quote_id>", methods=['DELETE'])
@@ -220,15 +241,26 @@ def delete_quote(quote_id: int):
     return jsonify(error = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
 
 
-# @app.route("/quotes/count")
-# def quotes_count():
-#     count_quotes = "SELECT count(*) as Count FROM quotes"
-#     cursor = get_db().cursor()
-#     cursor.execute(count_quotes)
-#     count = cursor.fetchone()
-#     if count:
-#         return jsonify(count = count[0]), HTTPStatus.OK
-#     abort(503)
+@app.route("/quotes/count")
+def quotes_count():
+    # todo Странный метод
+    # user = db.session.execute(db.select(User).filter_by(username=username)).scalar_one()
+    quotes = db.session.execute(db.select(QuoteModel.id)).scalars()
+    if quotes:
+        i = 0
+        for quote in quotes:
+            i += 1
+        return jsonify(count = i), HTTPStatus.OK
+    abort(503)
+    
+    # db.session.query()
+    # count_quotes = "SELECT count(*) as Count FROM quotes"
+    # cursor = get_db().cursor()
+    # cursor.execute(count_quotes)
+    # count = cursor.fetchone()
+    # if count:
+    #     return jsonify(count = count[0]), HTTPStatus.OK
+    # abort(503)
 
 
 @app.route("/quotes/random")
