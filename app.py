@@ -18,8 +18,8 @@ class Base(DeclarativeBase):
     pass
 
 
-QUOTES_KEYS = set(('author_id', 'text', 'rate'))
-TABLE_FIELDS = ('id', 'author', 'text', 'rate')
+QUOTES_KEYS = set(('author_id', 'text', 'rating'))
+TABLE_FIELDS = ('id', 'author', 'text', 'rating')
 RATE_RANGE = range(1,6)
 
 BASE_DIR = Path(__file__).parent
@@ -60,6 +60,7 @@ class QuoteModel(db.Model):
     author_id: Mapped[str] = mapped_column(ForeignKey('authors.id'))
     author: Mapped['AuthorModel'] = relationship(back_populates='quotes')
     text: Mapped[str] = mapped_column(String(255))
+    rating: Mapped[int] = mapped_column(default=1, server_default='1')
 
     def __init__(self, author, text):
         self.author = author
@@ -70,14 +71,16 @@ class QuoteModel(db.Model):
             "id": self.id,
             "author_id": self.author_id,
             "author": self.author.to_dict(),
-            "text": self.text
+            "text": self.text,
+            "rating": self.rating
         }
 
     def to_dict_short(self):
         return {
             "id": self.id,
             "author_id": self.author_id,
-            "text": self.text
+            "text": self.text,
+            "rating": self.rating
         }
 
 @app.errorhandler(HTTPException)
@@ -95,6 +98,7 @@ def get_author(author_id):
 
 @app.route("/authors")
 def get_authors() -> list[dict[str, Any]]: 
+    """Возвращает список авторов"""
     authors_db = db.session.execute(db.select(AuthorModel)).scalars()
     authors = []
     for author_db in authors_db:
@@ -104,6 +108,7 @@ def get_authors() -> list[dict[str, Any]]:
 
 @app.route("/authors", methods=["POST"])
 def create_author():
+    """Создает нового автора"""
     author_data = request.json
     author = AuthorModel(author_data["name"])
     db.session.add(author)
@@ -113,20 +118,24 @@ def create_author():
 
 @app.route("/authors/<int:author_id>", methods=["PUT"])
 def edit_author(author_id):
+    """Редактирует автора по id"""
     author_data = request.json
     author = db.session.get(AuthorModel, author_id)
-    author_name = author_data.get('name')
-    if author_name:
-        author.name = (author_data['name'])
+    if author:
+        author_name = author_data.get('name')
+        if author_name:
+            author.name = (author_data['name'])
 
-    print(author_data)
-    # db.session.add(author)
-    db.session.commit()
-    return author.to_dict(), HTTPStatus.OK
+        print(author_data)
+        # db.session.add(author)
+        db.session.commit()
+        return author.to_dict(), HTTPStatus.OK
+    return jsonify(message=f"Author with id={author_id} not found"), HTTPStatus.NOT_FOUND
 
 
 @app.route("/authors/<int:author_id>", methods=["DELETE"])
 def delete_author(author_id):
+    """Удаляет автора по id"""
     author = db.session.get(AuthorModel, author_id)
     if author:
         db.session.delete(author)
@@ -136,20 +145,27 @@ def delete_author(author_id):
 
 
 @app.route("/authors/<int:author_id>/quotes")
-def get_author_quotes(author_id): 
+def get_author_quotes(author_id):
+    """Выводит список цитат по id автора""" 
     author = db.session.get(AuthorModel, author_id)
-    quotes = []
-    for quote_db in author.quotes:
-        quotes.append(quote_db.to_dict_short())        
-    return jsonify(author = author.to_dict(), quotes = quotes), HTTPStatus.OK
+    if author:
+        quotes = []
+        for quote_db in author.quotes:
+            quotes.append(quote_db.to_dict_short())        
+        return jsonify(author = author.to_dict(), quotes = quotes), HTTPStatus.OK
+    return jsonify(message = f"Author with id={author_id} not found"), HTTPStatus.NOT_FOUND
 
 
 @app.route("/authors/<int:author_id>/quotes", methods=["POST"])
 def create_author_quote(author_id: int):
+    """Создает цитату для указанного id автора"""
     author = db.session.get(AuthorModel, author_id)
     if author:
         new_data = request.json
         quote = QuoteModel(author, new_data["text"])
+        new_rating = new_data.get('rating')
+        if new_rating and new_rating in RATE_RANGE:
+            quote.rating = new_rating
         db.session.add(quote)
         db.session.commit()
         return quote.to_dict(), HTTPStatus.CREATED
@@ -157,7 +173,8 @@ def create_author_quote(author_id: int):
 
 
 @app.route("/quotes")
-def get_quotes() -> list[dict[str, Any]]: 
+def get_quotes() -> list[dict[str, Any]]:
+    """Выводит список цитат""" 
     quotes_db = db.session.execute(db.select(QuoteModel)).scalars()
     quotes = []
     for quote_db in quotes_db:
@@ -173,12 +190,12 @@ def get_quotes() -> list[dict[str, Any]]:
 #     wrong_keys = set(new_data.keys()) - QUOTES_KEYS
 #     if wrong_keys:
 #         return jsonify(error = f"Wrong keys {wrong_keys}"), HTTPStatus.BAD_REQUEST
-#     new_rate = new_data.get('rate')
-#     if new_rate is None or new_rate not in RATE_RANGE:
-#         new_data['rate'] = min(RATE_RANGE)
+#     new_rating = new_data.get('rating')
+#     if new_rating is None or new_rating not in RATE_RANGE:
+#         new_data['rating'] = min(RATE_RANGE)
 
 #     # Вставка записи
-#     # quote = QuoteModel(new_data['author'], new_data['text'], new_data['rate'])
+#     # quote = QuoteModel(new_data['author'], new_data['text'], new_data['rating'])
 #     quote_db = QuoteModel(new_data['author'], new_data['text'])
 #     db.session.add(quote_db)
 #     db.session.commit()
@@ -187,6 +204,7 @@ def get_quotes() -> list[dict[str, Any]]:
 
 @app.route("/quotes/<int:quote_id>")
 def get_quote(quote_id : int) -> dict:
+    """Выводит цитату по id"""
     # quote_db = db.session.execute(db.select(QuoteModel).filter_by(id=id)).scalar_one_or_none()
     quote = db.session.get(QuoteModel, quote_id)
     if quote:
@@ -197,29 +215,32 @@ def get_quote(quote_id : int) -> dict:
 
 @app.route("/quotes/<int:quote_id>", methods=['PUT'])
 def edit_quote(quote_id: int) -> dict:
+    """Редактирует цитату по id"""
     # Проверка данных
     new_data = dict(request.json)
     wrong_keys = set(new_data.keys()) - QUOTES_KEYS
     if wrong_keys:
         return jsonify(error = f"Wrong keys {wrong_keys}"), HTTPStatus.BAD_REQUEST
-    # new_rate = new_data.get('rate')
-    # if new_rate and new_rate not in RATE_RANGE:
-    #     new_data.pop['rate']
+    # new_rating = new_data.get('rating')
+    # if new_rating and new_rating not in RATE_RANGE:
+    #     new_data.pop['rating']
 
     # Обновление записи
     quote_db = db.session.get(QuoteModel, quote_id)
     if quote_db:
-        new_text = new_data.get('text')
-        if new_text:
-            quote_db.text = new_text
-        new_rate = new_data.get('rate')
-        if new_rate and new_rate in RATE_RANGE:
-            quote_db.rate = new_rate
         new_author_id = new_data.get('author_id')
         if new_author_id:
             new_author = db.session.get(AuthorModel, new_author_id)
             if new_author:
                 quote_db.author_id = new_author_id
+            else:
+                return jsonify(message = f"Author with id={new_author_id} not found"), HTTPStatus.BAD_REQUEST
+        new_text = new_data.get('text')
+        if new_text:
+            quote_db.text = new_text
+        new_rating = new_data.get('rating')
+        if new_rating and new_rating in RATE_RANGE:
+            quote_db.rating = new_rating
 
         # quote = quote_db.to_dict()
         # quote.update(new_data)
@@ -232,6 +253,7 @@ def edit_quote(quote_id: int) -> dict:
 
 @app.route("/quotes/<int:quote_id>", methods=['DELETE'])
 def delete_quote(quote_id: int):
+    """Удаляет цитату по id"""
     # quote_db = db.session.execute(db.select(QuoteModel).filter_by(id=quote_id)).scalar_one_or_none()
     quote = db.session.get(QuoteModel, quote_id)
     if quote:
@@ -243,6 +265,7 @@ def delete_quote(quote_id: int):
 
 @app.route("/quotes/count")
 def quotes_count():
+    """Выводит количество цитат в базе данных"""
     # todo Странный метод
     # user = db.session.execute(db.select(User).filter_by(username=username)).scalar_one()
     quotes = db.session.execute(db.select(QuoteModel.id)).scalars()
@@ -265,6 +288,7 @@ def quotes_count():
 
 @app.route("/quotes/random")
 def random_quote() -> dict:
+    """Выводит случайную цитату"""
     quotes_db = db.session.execute(db.select(QuoteModel)).scalars()
     quotes = []
     for quote_db in quotes_db:
@@ -275,15 +299,14 @@ def random_quote() -> dict:
 # @app.route("/quotes/filter", methods=['GET'])
 # def filtered_quotes() -> list[dict]:
 #     args = request.args.to_dict()
-#     rate_filter = args.get('rate')
-#     if rate_filter:
-#         args['rate'] = int(rate_filter)
+#     rating_filter = args.get('rating')
+#     if rating_filter:
+#         args['rating'] = int(rating_filter)
 
 #     select_quotes = "SELECT * FROM quotes"
 #     cursor = get_db().cursor()
 #     cursor.execute(select_quotes)
 #     quotes_db = cursor.fetchall()
-#     # keys = ('id', 'author', 'text', 'rate')
 #     quotes = []
 #     for quote_db in quotes_db:
 #         quote = dict(zip(TABLE_FIELDS, quote_db))
