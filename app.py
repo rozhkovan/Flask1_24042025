@@ -9,7 +9,7 @@ from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, func, ForeignKey
+from sqlalchemy import String, UniqueConstraint, func, ForeignKey
 
 from flask_migrate import Migrate
 
@@ -36,20 +36,25 @@ db.init_app(app)
 migrate = Migrate(app, db)
 
 
-class AuthorModel(db.Model):
+class AuthorModel(Base): # db.Model):
     __tablename__ = 'authors'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[int] = mapped_column(String(32), index= True, unique=True)
+    name: Mapped[str] = mapped_column(String(32)) #, index= True, unique=True)
+    surname: Mapped[str] = mapped_column(String(32), server_default='')
     quotes: Mapped[list['QuoteModel']] = relationship(back_populates='author', lazy='dynamic', cascade="all,delete-orphan")
     
-    def __init__(self, name):
+    __table_args__ = (UniqueConstraint('name', 'surname', name='AuthorFullNameConstrant'), )
+    
+    def __init__(self, name, surname):
         self.name = name
+        self.surname = surname
 
     def to_dict(self):
         return {
             'id': self.id,
-            'name': self.name
+            'name': self.name,
+            'surname': self.surname
             }
 
 
@@ -62,9 +67,13 @@ class QuoteModel(db.Model):
     text: Mapped[str] = mapped_column(String(255))
     rating: Mapped[int] = mapped_column(default=1, server_default='1')
 
-    def __init__(self, author, text):
+    def __init__(self, author, text, rating):
         self.author = author
         self.text = text
+        if rating in RATE_RANGE:
+            self.rating = rating
+        else:
+            self.rating = 1
 
     def to_dict(self):
         return {
@@ -110,10 +119,16 @@ def get_authors() -> list[dict[str, Any]]:
 def create_author():
     """Создает нового автора"""
     author_data = request.json
-    author = AuthorModel(author_data["name"])
-    db.session.add(author)
-    db.session.commit()
-    return author.to_dict(), HTTPStatus.CREATED
+    name = author_data.get('name')
+    surname = author_data.get('surname')
+    if name:
+        if not surname:
+            surname = ""
+        author = AuthorModel(name, surname)
+        db.session.add(author)
+        db.session.commit()
+        return author.to_dict(), HTTPStatus.CREATED
+    return jsonify(message = f'Incomplete data {author_data}'), HTTPStatus.BAD_REQUEST
 
 
 @app.route("/authors/<int:author_id>", methods=["PUT"])
@@ -124,10 +139,10 @@ def edit_author(author_id):
     if author:
         author_name = author_data.get('name')
         if author_name:
-            author.name = (author_data['name'])
-
-        print(author_data)
-        # db.session.add(author)
+            author.name = author_name
+        author_surname = author_data.get('surname')
+        if author_surname:
+            author.surname = author_surname
         db.session.commit()
         return author.to_dict(), HTTPStatus.OK
     return jsonify(message=f"Author with id={author_id} not found"), HTTPStatus.NOT_FOUND
