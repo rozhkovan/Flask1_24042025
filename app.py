@@ -65,7 +65,7 @@ class QuoteModel(db.Model):
     author_id: Mapped[str] = mapped_column(ForeignKey('authors.id'))
     author: Mapped['AuthorModel'] = relationship(back_populates='quotes')
     text: Mapped[str] = mapped_column(String(255))
-    rating: Mapped[int] = mapped_column(default=1, server_default='1')
+    rating: Mapped[int] = mapped_column(nullable=False, default=1, server_default='1')
 
     def __init__(self, author, text, rating):
         self.author = author
@@ -102,7 +102,7 @@ def get_author(author_id):
     author = db.session.get(AuthorModel, author_id)
     if author:
         return jsonify(author = author.to_dict()), HTTPStatus.OK
-    return jsonify(error = f"Author with id={author_id} not found"), HTTPStatus.NOT_FOUND
+    return jsonify(message = f"Author with id={author_id} not found"), HTTPStatus.NOT_FOUND
 
 
 @app.route("/authors")
@@ -204,7 +204,7 @@ def get_quotes() -> list[dict[str, Any]]:
 #     new_data = dict(request.json)
 #     wrong_keys = set(new_data.keys()) - QUOTES_KEYS
 #     if wrong_keys:
-#         return jsonify(error = f"Wrong keys {wrong_keys}"), HTTPStatus.BAD_REQUEST
+#         return jsonify(message = f"Wrong keys {wrong_keys}"), HTTPStatus.BAD_REQUEST
 #     new_rating = new_data.get('rating')
 #     if new_rating is None or new_rating not in RATE_RANGE:
 #         new_data['rating'] = min(RATE_RANGE)
@@ -220,12 +220,10 @@ def get_quotes() -> list[dict[str, Any]]:
 @app.route("/quotes/<int:quote_id>")
 def get_quote(quote_id : int) -> dict:
     """Выводит цитату по id"""
-    # quote_db = db.session.execute(db.select(QuoteModel).filter_by(id=id)).scalar_one_or_none()
     quote = db.session.get(QuoteModel, quote_id)
     if quote:
-        # quote = qoute_db.to_dict()
         return jsonify(quote.to_dict()), HTTPStatus.OK
-    return jsonify(error = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
+    return jsonify(message = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
 
 
 @app.route("/quotes/<int:quote_id>", methods=['PUT'])
@@ -235,7 +233,7 @@ def edit_quote(quote_id: int) -> dict:
     new_data = dict(request.json)
     wrong_keys = set(new_data.keys()) - QUOTES_KEYS
     if wrong_keys:
-        return jsonify(error = f"Wrong keys {wrong_keys}"), HTTPStatus.BAD_REQUEST
+        return jsonify(message = f"Wrong keys {wrong_keys}"), HTTPStatus.BAD_REQUEST
     # new_rating = new_data.get('rating')
     # if new_rating and new_rating not in RATE_RANGE:
     #     new_data.pop['rating']
@@ -263,7 +261,32 @@ def edit_quote(quote_id: int) -> dict:
         # quote_db.text = quote['text']
         db.session.commit()
         return jsonify(quote_db.to_dict()), HTTPStatus.OK
-    return jsonify(error = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
+    return jsonify(message = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
+
+@app.route("/quotes/<int:quote_id>/up", methods=['PUT'])
+def up_quote(quote_id: int) -> None:
+    quote_db = db.session.get(QuoteModel, quote_id)
+    if quote_db:
+        new_rating = quote_db.rating + 1
+        if new_rating in RATE_RANGE:
+            quote_db.rating = new_rating
+            db.session.commit()
+            return jsonify(message = f"Your vote has been accepted, new rating is {new_rating}."), HTTPStatus.OK
+        return jsonify(message=f"Quote with id={quote_id} has maximal rating."), HTTPStatus.OK
+    return jsonify(message = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
+
+
+@app.route("/quotes/<int:quote_id>/down", methods=['PUT'])
+def down_quote(quote_id: int) -> None:
+    quote_db = db.session.get(QuoteModel, quote_id)
+    if quote_db:
+        new_rating = quote_db.rating - 1
+        if new_rating in RATE_RANGE:
+            quote_db.rating = new_rating
+            db.session.commit()
+            return jsonify(message = f"Your vote has been accepted, new rating is {new_rating}."), HTTPStatus.OK
+        return jsonify(message=f"Quote with id={quote_id} has minimal rating."), HTTPStatus.OK
+    return jsonify(message = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
 
 
 @app.route("/quotes/<int:quote_id>", methods=['DELETE'])
@@ -275,7 +298,7 @@ def delete_quote(quote_id: int):
         db.session.delete(quote)
         db.session.commit()
         return jsonify(message = f"Quote with id={quote_id} deleted."), HTTPStatus.OK
-    return jsonify(error = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
+    return jsonify(message = f"Quote with id={quote_id} not found"), HTTPStatus.NOT_FOUND
 
 
 @app.route("/quotes/count")
