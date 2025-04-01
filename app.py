@@ -311,26 +311,21 @@ def random_quote() -> dict:
     return jsonify(choice(quotes)), HTTPStatus.OK
 
 
-# @app.route("/quotes/filter", methods=['GET'])
-# def filtered_quotes() -> list[dict]:
-#     args = request.args.to_dict()
-#     rating_filter = args.get('rating')
-#     if rating_filter:
-#         args['rating'] = int(rating_filter)
+@app.route("/quotes/filter", methods=['GET'])
+def filtered_quotes() -> list[dict]:
+    args = request.args.to_dict()
 
-#     select_quotes = "SELECT * FROM quotes"
-#     cursor = get_db().cursor()
-#     cursor.execute(select_quotes)
-#     quotes_db = cursor.fetchall()
-#     quotes = []
-#     for quote_db in quotes_db:
-#         quote = dict(zip(TABLE_FIELDS, quote_db))
-#         quotes.append(quote)
+    # quotes = db.session.execute(db.select(QuoteModel).filter_by(id=id)).scalar_one_or_none()
+    # if name_filter:
+        # quotes_db = db.session.execute(db.select(QuoteModel).filter_by(QuoteModel.author.has(name=name_filter)).scalars()
+        # query = db.select(QuoteModel).filter_by(**args)
 
-#     result = quotes.copy()
-#     for key in args:
-#         result = list(filter(lambda x: x[key] == args[key], result))
-#     return jsonify(result), HTTPStatus.OK
+    query = db.select(QuoteModel).filter_by(**args)
+    quotes_db = db.session.execute(query).scalars()
+    quotes = []
+    for quote_db in quotes_db:
+        quotes.append(quote_db.to_dict())        
+    return jsonify(quotes), HTTPStatus.OK
 
 
 if __name__ == "__main__":
