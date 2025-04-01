@@ -115,6 +115,26 @@ def get_authors() -> list[dict[str, Any]]:
     return jsonify(authors), HTTPStatus.OK
 
 
+@app.route("/authors/name")
+def get_name_ordered_authors() -> list[dict[str, Any]]: 
+    """Возвращает список авторов в сортировке по имени"""
+    authors_db = db.session.execute(db.select(AuthorModel).order_by(AuthorModel.name)).scalars()
+    authors = []
+    for author_db in authors_db:
+        authors.append(author_db.to_dict())        
+    return jsonify(authors), HTTPStatus.OK
+
+
+@app.route("/authors/surname")
+def get_surname_ordered_authors() -> list[dict[str, Any]]: 
+    """Возвращает список авторов в сортировке по имени"""
+    authors_db = db.session.execute(db.select(AuthorModel).order_by(AuthorModel.surname)).scalars()
+    authors = []
+    for author_db in authors_db:
+        authors.append(author_db.to_dict())        
+    return jsonify(authors), HTTPStatus.OK
+
+
 @app.route("/authors", methods=["POST"])
 def create_author():
     """Создает нового автора"""
