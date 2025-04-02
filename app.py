@@ -5,11 +5,12 @@ from typing import Any
 from http import HTTPStatus
 from pathlib import Path
 # import sqlite3
+import datetime
 
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, UniqueConstraint, func, ForeignKey
+from sqlalchemy import String, UniqueConstraint, func, ForeignKey, DateTime
 
 from flask_migrate import Migrate
 
@@ -68,8 +69,9 @@ class QuoteModel(db.Model):
     text: Mapped[str] = mapped_column(String(255))
     rating: Mapped[int] = mapped_column(nullable=False, default=1, server_default='1')
     deleted: Mapped[bool] = mapped_column(default=False, server_default='false')
+    created_datetime: Mapped[datetime.datetime] = mapped_column(DateTime(), server_default=func.now())
 
-    def __init__(self, author, text, rating):
+    def __init__(self, author, text, rating=1):
         self.author = author
         self.text = text
         if rating in RATE_RANGE:
@@ -83,7 +85,8 @@ class QuoteModel(db.Model):
             "author_id": self.author_id,
             "author": self.author.to_dict(),
             "text": self.text,
-            "rating": self.rating
+            "rating": self.rating,
+            "created_datetime": self.created_datetime
         }
 
     def to_dict_short(self):
