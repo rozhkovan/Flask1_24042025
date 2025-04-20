@@ -1,0 +1,52 @@
+'''
+docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=<password>" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
+'''
+
+import pymssql
+from random import randrange
+
+
+conn = pymssql.connect(
+    server='localhost',
+    user='sa',
+    password='*********',
+    database='log_db',
+    as_dict=True
+)
+
+cursor = conn.cursor()
+
+try:
+    SQL_QUERY = """
+    SELECT 
+    *
+    FROM 
+    log_entry;
+    """
+    cursor.execute(SQL_QUERY)
+    records = cursor.fetchall()
+    for r in records:
+        print(r)
+
+    entry_no = randrange(1000)
+    SQL_STATEMENT = """
+    INSERT log_entry (
+    EntryNo, 
+    LogText
+    ) OUTPUT INSERTED.EntryNo, INSERTED.LogText 
+    VALUES (%s, %s)
+    """
+    cursor.execute(
+        SQL_STATEMENT,
+        (
+            entry_no,
+            f"Запись лога {entry_no}"
+        )
+    )
+    result = cursor.fetchone()
+    print(result)
+    conn.commit()
+
+finally:
+    cursor.close()
+    conn.close()
